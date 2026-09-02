@@ -13,9 +13,120 @@ enum Role {
 }
 
 model User {
-  id           String   @id @default(cuid())
+  id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String
   role         Role     @default(USER)
   createdAt    DateTime @default(now())
+
+  resumes         Resume[]
+  jobDescriptions  JobDescription[]
+  sessions         Session[]
+}
+
+model Session {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  refreshTokenHash String
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Resume {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  createdAt DateTime @default(now())
+
+  versions ResumeVersion[]
+
+  @@index([userId])
+}
+
+model ResumeVersion {
+  id             String   @id @default(uuid())
+  resumeId       String
+  resume         Resume   @relation(fields: [resumeId], references: [id])
+  versionNumber  Int
+  s3Key          String
+  extractedText  String   @db.Text
+  createdAt      DateTime @default(now())
+
+  analyses Analysis[]
+
+  @@unique([resumeId, versionNumber])
+}
+
+model JobDescription {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  title      String
+  source     String   // "pasted" | "uploaded"
+  rawText    String   @db.Text
+  s3Key      String?
+  isFavorite Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  analyses Analysis[]
+
+  @@index([userId])
+}
+
+model Analysis {
+  id                String   @id @default(uuid())
+  resumeVersionId   String
+  resumeVersion     ResumeVersion   @relation(fields: [resumeVersionId], references: [id])
+  jobDescriptionId  String
+  jobDescription    JobDescription  @relation(fields: [jobDescriptionId], references: [id])
+  atsScore          Int
+  experienceMatch   Int
+  educationMatch    Int
+  sectionFeedback   Json
+  createdAt         DateTime @default(now())
+
+  skills            Skill[]
+  missingKeywords    MissingKeyword[]
+  interviewQuestions InterviewQuestion[]
+  report             Report?
+
+  @@index([resumeVersionId, jobDescriptionId])
+}
+
+model Skill {
+  id         String   @id @default(uuid())
+  analysisId String
+  analysis   Analysis @relation(fields: [analysisId], references: [id])
+  name       String
+  category   String   // "technical" | "soft"
+  matched    Boolean
+}
+
+model MissingKeyword {
+  id         String   @id @default(uuid())
+  analysisId String
+  analysis   Analysis @relation(fields: [analysisId], references: [id])
+  keyword    String
+  importance String   // "high" | "medium" | "low"
+}
+
+model InterviewQuestion {
+  id           String   @id @default(uuid())
+  analysisId   String
+  analysis     Analysis @relation(fields: [analysisId], references: [id])
+  category     String   // "technical" | "behavioral" | "hr" | "coding"
+  difficulty   String   // "easy" | "medium" | "hard"
+  questionText String   @db.Text
+}
+
+model Report {
+  id         String   @id @default(uuid())
+  analysisId String   @unique
+  analysis   Analysis @relation(fields: [analysisId], references: [id])
+  s3Key      String
+  createdAt  DateTime @default(now())
 }
